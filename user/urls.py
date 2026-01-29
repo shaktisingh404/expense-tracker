@@ -6,12 +6,17 @@ from .views import (
     LogoutView,
     GetUpdateUserView,
     UpdatePasswordUserView,
+    LoginViewOkta,
+    OktaCallbackView
 )
 from rest_framework_simplejwt.views import TokenRefreshView
+
 
 urlpatterns = [
     path("register/", UserCreateView.as_view(), name="user-signup"),
     path("login/", LoginView.as_view(), name="user-login"),
+    path("login/okta/", LoginViewOkta.as_view(), name="okta-login"),
+    path('callback/', OktaCallbackView.as_view(), name='auth_callback'),
     path("logout/", LogoutView.as_view(), name="user-logout"),
     path("change-password/", UpdatePasswordUserView.as_view(), name="change-password"),
     path("", GetUpdateUserView.as_view()),

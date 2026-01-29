@@ -1,3 +1,4 @@
+import os
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -6,10 +7,35 @@ from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from .serializers import UserSerializer, LoginSerializer
 from .models import ActiveTokens, User
+from authlib.integrations.django_client import OAuth
+from django.shortcuts import redirect
+from django.urls import reverse
+from django.conf import settings
+from asgiref.sync import sync_to_async
+from dotenv import load_dotenv
+load_dotenv()
+
 
 from category.models import Category
 from django.contrib.auth import authenticate
 
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+OKTA_DOMAIN = os.getenv("OKTA_DOMAIN", "integrator-9568283.okta.com")
+if not CLIENT_ID or not CLIENT_SECRET:
+    raise ValueError("CLIENT_ID and CLIENT_SECRET must be set in environment variables")
+
+
+oauth = OAuth()
+oauth.register(
+    name='okta',
+    client_id=CLIENT_ID,
+    client_secret=CLIENT_SECRET,
+    server_metadata_url=f'https://{OKTA_DOMAIN}/oauth2/default/.well-known/openid-configuration',
+    client_kwargs={
+        'scope': 'openid profile email',
+    }
+)
 
 class UserCreateView(APIView):
     permission_classes = [AllowAny]
@@ -185,7 +211,112 @@ class LoginView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
+from asgiref.sync import sync_to_async
 
+class LoginViewOkta(APIView):
+    permission_classes = [AllowAny]
+
+#     def get(self, request):
+#         # Build the callback URL
+#         redirect_uri = request.build_absolute_uri(reverse('auth_callback'))
+#         print(f"--- COPY THIS URL: {redirect_uri} ---")
+#         # Authlib Django client expects the underlying standard request
+#         return oauth.okta.authorize_redirect(request._request, redirect_uri)
+
+# class OktaCallbackView(APIView):
+#     permission_classes = [AllowAny]
+
+#     def get(self, request):
+#         try:
+#             # Exchange code for token (Synchronous)
+#             token = oauth.okta.authorize_access_token(request._request)
+#             user_info = token.get('userinfo')
+            
+#             if not user_info:
+#                 return Response({"error": "No user info"}, status=status.HTTP_400_BAD_REQUEST)
+
+#             email = user_info.get('email')
+#             username = user_info.get('preferred_username', email.split('@')[0])
+            
+#             # Standard synchronous ORM calls
+#             user, created = User.objects.get_or_create(
+#                 email=email,
+#                 defaults={'username': username}
+#             )
+
+#             access_token = str(AccessToken.for_user(user))
+#             refresh_token = str(RefreshToken.for_user(user))
+
+#             ActiveTokens.objects.create(user=user, token=access_token)
+
+#             return Response({
+#                 "status": "success",
+#                 "access_token": access_token,
+#                 "refresh_token": refresh_token,
+#                 "user": UserSerializer(user).data
+#             }, status=status.HTTP_200_OK)
+            
+#         except Exception as e:
+#             return Response({"error": f"Authentication failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+class LoginViewOkta(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        # We use request._request because DRF wraps the standard Django request
+        redirect_uri = request.build_absolute_uri(reverse('auth_callback'))
+        return oauth.okta.authorize_redirect(request._request, redirect_uri)
+
+class OktaCallbackView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        try:
+            token = oauth.okta.authorize_access_token(request._request)
+            user_info = token.get('userinfo')
+            
+            if not user_info:
+                return Response({"error": "No user info"}, status=status.HTTP_400_BAD_REQUEST)
+
+            email = user_info.get('email')
+            
+            # Mapping Okta info to your User model fields
+            full_name = user_info.get('name', '').split(' ')
+            f_name = full_name[0] if len(full_name) > 0 else ""
+            l_name = full_name[1] if len(full_name) > 1 else ""
+
+            # Use get_or_create to sync with your Postgres DB
+            user, created = User.objects.get_or_create(
+                email=email,
+                defaults={
+                    'username': user_info.get('preferred_username', email),
+                    'first_name': f_name,
+                    'last_name': l_name,
+                    'is_active': True
+                }
+            )
+
+            # Generate JWTs
+            access_token = str(AccessToken.for_user(user))
+            refresh_token = str(RefreshToken.for_user(user))
+
+            # Track the active token
+            ActiveTokens.objects.create(user=user, token=access_token)
+
+            # Use your existing UserSerializer for a consistent response format
+            serializer = UserSerializer(user)
+
+            return Response({
+                "status": "success",
+                "message": f"Login successful for {user.email}",
+                "access_token": access_token,
+                "refresh_token": refresh_token,
+                "user": serializer.data  # Consistent with your other login views
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({"error": f"Auth failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+    
 class LogoutView(APIView):
 
     def post(self, request):
