@@ -95,3 +95,6 @@ psql-data/
 .vscode/
 .idea/
 .DS_Store
+# Local binaries
+Backend/kubectl
+Backend/minikube-linux-amd64
