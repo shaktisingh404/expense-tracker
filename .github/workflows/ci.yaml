@@ -33,11 +33,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v3
+      - name: Install kubeconform
+        run: |
+          curl -L https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+          | tar xz
+          sudo mv kubeconform /usr/local/bin/kubeconform
 
       - name: Validate Kubernetes Manifests
         run: |
-          kubectl create --dry-run=client --validate=false -f ./Backend/deploy/
-
-
+          kubeconform -strict -summary ./Backend/deploy/
