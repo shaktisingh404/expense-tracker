@@ -1,0 +1,18 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: expense-tracker-monitor
+  namespace: monitoring
+  labels:
+    release: kind-prometheus
+spec:
+  selector:
+    matchLabels:
+      app: expense-tracker
+  namespaceSelector:
+    matchNames:
+      - default
+  endpoints:
+  - port: web-metrics
+    path: /metrics
+    interval: 15s

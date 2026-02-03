@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: psql
+spec:
+  serviceName: psql-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: psql
+  template:
+    metadata:
+      labels:
+        app: psql
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:16
+
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: expense-tracker-config
+              key: POSTGRES_DB
+
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: expense-tracker-config
+              key: POSTGRES_USER
+
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: expense-tracker-secrets
+              key: postgres-password
+
+        ports:
+        - containerPort: 5432
+
+        volumeMounts:
+        - name: psql-data
+          mountPath: /var/lib/postgresql/data
+
+        livenessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+          initialDelaySeconds: 20
+
+        readinessProbe:
+          exec:
+            command:
+            - sh
+            - -c
+            - pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+          initialDelaySeconds: 5
+
+      volumes:
+      - name: psql-data
+        persistentVolumeClaim:
+          claimName: psql-data
+---
+
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        livenessProbe:
+          exec:
+            command: ["redis-cli", "ping"]
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: expense-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: expense-tracker
+  template:
+    metadata:
+      labels:
+        app: expense-tracker
+      annotations:
+        prometheus.io/scrape: "true" 
+        prometheus.io/path: "/metrics/metrics"   
+        prometheus.io/port: "8000"
+    spec:
+      containers:
+      - name: app
+        image: expense-tracker:latest
+        imagePullPolicy: Never
+        command:
+          - "sh"
+          - "-c"
+          - |
+            echo "Waiting for database..."
+            until python3 -c "import socket; s = socket.socket(); s.connect(('psql-service', 5432))" 2>/dev/null; do
+              sleep 2
+            done
+            echo "Database is ready! Running migrations..."
+            python manage.py migrate
+            echo "Starting server..."
+            python manage.py runserver 0.0.0.0:8000
+        ports:
+        - containerPort: 8000
+        envFrom:
+        - configMapRef: { name: expense-tracker-config }
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom: { secretKeyRef: { name: expense-tracker-secrets, key: postgres-password } }
+        - name: CLIENT_SECRET 
+          valueFrom: { secretKeyRef: { name: expense-tracker-secrets, key: CLIENT_SECRET } }
+        
+
+
+    

@@ -1,0 +1,69 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - expense-tracker-app
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: always
+
+  psql-service:
+    image: postgres:16
+    container_name: psql-service
+    ports: 
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: expense_tracker
+    volumes:
+      - psql-data:/var/lib/postgresql/data
+    networks:
+      - expense-tracker-app
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d expense_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
+  
+  expense_tracker:
+    build:
+      context: .
+    container_name: expense_tracker
+    environment:
+      DATABASE_URL: postgresql://postgres:password@psql-service:5432/expense_tracker
+      POSTGRES_PASSWORD: root
+      PYTHONUNBUFFERED: "1"
+    ports:
+      - "8000:8000"
+    restart: always
+    env_file:
+      - .env
+    command: >
+      sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    depends_on:
+      psql-service: 
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - expense-tracker-app
+    
+volumes:
+  psql-data:
+
+networks:
+  expense-tracker-app:
+    driver: bridge
+
+

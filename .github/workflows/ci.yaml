@@ -7,20 +7,6 @@ on:
     branches: [ main ]
 
 jobs:
-#   helm-ci:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v4
-
-#       - name: Install Helm
-#         uses: azure/setup-helm@v4
-
-#       - name: Helm lint
-#         run: helm lint helm
-
-#       - name: Helm template validation
-#         run: helm template helm > /dev/null
-
   python-ci:
     runs-on: ubuntu-latest
     steps:
@@ -29,14 +15,25 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install ruff
+          pip install -r ./backend/requirements.txt
+          pip install flake8 pytest
 
-      - name: Python syntax check
+      - name: Lint with flake8
         run: |
-          python -m compileall .
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+  kubernetes-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: Validate Kubernetes Manifests
+        run: |
+          kubectl create --dry-run=client -f ./backend/deploy/

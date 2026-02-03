@@ -1,0 +1,11 @@
+# 1. SHARED CONFIGURATION
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: expense-tracker-config
+data:
+  POSTGRES_DB: expense_tracker
+  POSTGRES_USER: postgres
+  DATABASE_URL: "postgresql://postgres:root@psql-service:5432/expense_tracker"
+  PYTHONUNBUFFERED: "1"
+  CLIENT_ID: "0oazjjprj4HHtDSss697" 
