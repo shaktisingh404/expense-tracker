@@ -20,13 +20,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r ./backend/requirements.txt
-          pip install flake8 pytest
+          pip install -r ./Backend/requirements.txt
+          pip install flake8
 
       - name: Lint with flake8
         run: |
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 Backend --count --select=E9,F63,F7,F82 --show-source --statistics
+
   kubernetes-check:
+    needs: python-ci
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,4 +38,4 @@ jobs:
 
       - name: Validate Kubernetes Manifests
         run: |
-          kubectl create --dry-run=client -f ./backend/deploy/
+          kubectl apply --dry-run=client -f ./Backend/deploy/
