@@ -38,5 +38,6 @@ jobs:
 
       - name: Validate Kubernetes Manifests
         run: |
-          kubectl apply --dry-run=client --validate=false -f ./Backend/deploy/
+          kubectl create --dry-run=client --validate=false -f ./Backend/deploy/
+
 
