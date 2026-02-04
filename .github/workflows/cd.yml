@@ -1,0 +1,79 @@
+name: CD Pipeline - Backend ECR & EKS
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: ap-south-1
+  ECR_REPOSITORY: restart/finance-tracker-backend
+  # Confirmed from your details:
+  EKS_CLUSTER_NAME: expense-tracker
+  # This is the role GitHub Actions will use to talk to AWS
+  IAM_ROLE_ARN: arn:aws:iam::186509625792:role/shaktisingh404
+  # Path to your chart inside the repo
+  CHART_PATH: ./Backend/expense-tracker-chart
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.IAM_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Backend Image
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # Build the image from the Backend folder
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./Backend
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          # Update 'latest' tag as well
+          docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.0
+
+      - name: Update Kubeconfig
+        run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
+
+      - name: Refresh ECR Secret in Cluster
+        # This fixes the 'ImagePullBackOff' error by giving the cluster fresh credentials
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          kubectl create secret docker-registry ecr-registry-secret \
+            --docker-server=$ECR_REGISTRY \
+            --docker-username=AWS \
+            --docker-password=$(aws ecr get-login-password --region ${{ env.AWS_REGION }}) \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy to EKS with Helm
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          helm upgrade --install expense-tracker ${{ env.CHART_PATH }} \
+            --set app.image.repository=$ECR_REGISTRY/$ECR_REPOSITORY \
+            --set app.image.tag=$IMAGE_TAG \
+            --set app.image.pullPolicy=Always \
+            --set app.imagePullSecrets[0].name=ecr-registry-secret
