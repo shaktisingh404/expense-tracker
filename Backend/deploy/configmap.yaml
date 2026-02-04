@@ -1,4 +1,3 @@
-# 1. SHARED CONFIGURATION
 apiVersion: v1
 kind: ConfigMap
 metadata:

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+data:
+  POSTGRES_DB: {{ .Values.postgres.dbName | quote }}
+  POSTGRES_USER: {{ .Values.postgres.user | quote }}
+  POSTGRES_PASSWORD: {{ .Values.postgres.password | quote }}
+  
+  # FIX: Now this matches what Python expects
+  POSTGRES_HOST: "psql-service"
+  POSTGRES_PORT: "5432"
+  DATABASE_URL: "postgresql://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@psql-service:5432/{{ .Values.postgres.dbName }}"
+  
+  PYTHONUNBUFFERED: {{ .Values.app.config.pythonUnbuffered | quote }}
+  CLIENT_ID: {{ .Values.app.config.clientId | quote }}
+  
+  # FIX: Wait script needs to check the correct host
+  DB_HOST: "psql-service"

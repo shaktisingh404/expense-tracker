@@ -95,3 +95,6 @@ psql-data/
 .vscode/
 .idea/
 .DS_Store
+
+aws/
+awscliv2.zip

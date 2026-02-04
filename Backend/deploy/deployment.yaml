@@ -103,14 +103,10 @@ spec:
     metadata:
       labels:
         app: expense-tracker
-      annotations:
-        prometheus.io/scrape: "true" 
-        prometheus.io/path: "/metrics/metrics"   
-        prometheus.io/port: "8000"
     spec:
       containers:
       - name: app
-        image: expense-tracker:latest
+        image: expence-tracker:latest
         imagePullPolicy: Never
         command:
           - "sh"
