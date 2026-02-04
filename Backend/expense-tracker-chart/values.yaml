@@ -1,0 +1,42 @@
+# Global settings
+nameOverride: ""
+fullnameOverride: ""
+
+# Application Configuration
+app:
+  image:
+    repository: 186509625792.dkr.ecr.ap-south-1.amazonaws.com/restart/finance-tracker-backend
+    tag: aedb9f71497d3d963c01347ff175779f37148e98
+    pullPolicy: Always 
+  replicas: 1
+  service:
+    type: LoadBalancer
+    port: 8000
+  config:
+    pythonUnbuffered: "1"
+    clientId: "0oazjjprj4HHtDSss697"
+  secrets:
+    clientSecret: "jpKp-Kvq7ckHxkfqe5oHOvIZLhA9QsN52DaSWC-O4mN_UqtyZTOuuUtfxb4svyfa"
+  imagePullSecrets:
+    - name: ecr-registry-secret
+
+postgres:
+  image:
+    repository: postgres
+    tag: 16
+  dbName: expense_tracker
+  user: postgres
+  password: "root" 
+  storage:
+    size: 1Gi
+    className: "" 
+
+redis:
+  image:
+    repository: redis
+    tag: 7-alpine
+
+
+monitoring:
+  enabled: true
+  releaseLabel: kind-prometheus

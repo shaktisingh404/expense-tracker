@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-app
+spec:
+  replicas: {{ .Values.app.replicas }}
+  selector:
+    matchLabels:
+      app: expense-tracker
+  template:
+    metadata:
+      labels:
+        app: expense-tracker
+    spec:
+      {{- if .Values.app.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.app.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: app
+        image: "{{ .Values.app.image.repository }}:{{ .Values.app.image.tag }}"
+        imagePullPolicy: {{ .Values.app.image.pullPolicy }}
+        envFrom:
+        - configMapRef: { name: {{ .Release.Name }}-config }
+        env:
+        - name: POSTGRES_PASSWORD
+          valueFrom: { secretKeyRef: { name: {{ .Release.Name }}-secrets, key: postgres-password } }
+        - name: CLIENT_SECRET
+          valueFrom: { secretKeyRef: { name: {{ .Release.Name }}-secrets, key: CLIENT_SECRET } }
+        ports:
+        - containerPort: 8000
+        command:
+          - "sh"
+          - "-c"
+          - |
+            echo "Waiting for database at $DB_HOST..."
+            until python3 -c "import socket, os; s = socket.socket(); s.connect((os.environ['DB_HOST'], 5432))" 2>/dev/null; do
+              sleep 2
+            done
+            echo "Database is ready! Running migrations..."
+            python manage.py migrate
+            echo "Starting server..."
+            python manage.py runserver 0.0.0.0:8000

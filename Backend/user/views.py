@@ -1,8 +1,9 @@
 import os
+import urllib.parse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny 
 from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from .serializers import UserSerializer, LoginSerializer
@@ -253,22 +254,27 @@ class OktaCallbackView(APIView):
             access_token = str(AccessToken.for_user(user))
             refresh_token = str(RefreshToken.for_user(user))
 
-
             ActiveTokens.objects.create(user=user, token=access_token)
 
-            serializer = UserSerializer(user)
+            # ---------------------------------------------------------
+            # CHANGE IS HERE: REDIRECT TO FRONTEND INSTEAD OF RETURNING JSON
+            # ---------------------------------------------------------
+            
+            # 1. Define your React frontend URL (The "Catcher" page)
+            frontend_url = "http://localhost:5173/auth/callback"
 
-            return Response({
-                "status": "success",
-                "message": f"Login successful for {user.email}",
-                "access_token": access_token,
-                "refresh_token": refresh_token,
-                "user": serializer.data  # Consistent with your other login views
-            }, status=status.HTTP_200_OK)
+            # 2. Encode tokens into the URL safely
+            query_params = urllib.parse.urlencode({
+                "access": access_token,
+                "refresh": refresh_token
+            })
+
+            # 3. Redirect the browser to React
+            response = redirect(f"{frontend_url}?{query_params}")
+            return response
             
         except Exception as e:
             return Response({"error": f"Auth failed: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
-    
 class LogoutView(APIView):
 
     def post(self, request):
@@ -326,3 +332,4 @@ class TokenHandeling:
             token.blacklist()
         except Exception as e:
             raise Exception(f"Error blacklisting refresh token: {str(e)}")
+
