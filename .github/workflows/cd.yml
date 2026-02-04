@@ -76,4 +76,5 @@ jobs:
             --set app.image.repository=$ECR_REGISTRY/$ECR_REPOSITORY \
             --set app.image.tag=$IMAGE_TAG \
             --set app.image.pullPolicy=Always \
-            --set app.imagePullSecrets[0].name=ecr-registry-secret
+            --set app.imagePullSecrets[0].name=ecr-registry-secret \
+            --set monitoring.enabled=false
