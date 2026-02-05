@@ -7,11 +7,10 @@ on:
 env:
   AWS_REGION: ap-south-1
   ECR_REPOSITORY: restart/finance-tracker-backend
-  # Confirmed from your details:
   EKS_CLUSTER_NAME: expense-tracker
   # This is the role GitHub Actions will use to talk to AWS
   IAM_ROLE_ARN: arn:aws:iam::186509625792:role/shaktisingh404
-  # Path to your chart inside the repo
+  # Path to chart inside the repo
   CHART_PATH: ./Backend/expense-tracker-chart
 
 permissions:
@@ -44,7 +43,6 @@ jobs:
           # Build the image from the Backend folder
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./Backend
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          # Update 'latest' tag as well
           docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
 
@@ -57,7 +55,6 @@ jobs:
         run: aws eks update-kubeconfig --name ${{ env.EKS_CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
 
       - name: Refresh ECR Secret in Cluster
-        # This fixes the 'ImagePullBackOff' error by giving the cluster fresh credentials
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
